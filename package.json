@@ -8,8 +8,7 @@
     "lint": "turbo lint",
     "format": "turbo format",
     "typecheck": "turbo typecheck",
-    "test": "turbo test",
-    "test:web:docker": "docker build -f Dockerfile.test -t licious-web-tests . && docker run --rm licious-web-tests"
+    "test": "docker build -f Dockerfile.test -t licious-web-tests . && docker run --rm licious-web-tests"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
