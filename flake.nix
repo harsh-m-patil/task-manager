@@ -1,34 +1,36 @@
 {
-  description = "Licious monorepo dev shell";
+  description = "Node + Playwright dev shell";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
-        pkgs = import nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
-        };
-      in {
+        pkgs = import nixpkgs { inherit system; };
+        browsers =
+          (builtins.fromJSON (builtins.readFile "${pkgs.playwright-driver}/browsers.json")).browsers;
+        chromium-rev = (builtins.head (builtins.filter (x: x.name == "chromium") browsers)).revision;
+      in
+      {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             nodejs_22
             pnpm
-            playwright-driver
+            playwright-driver.browsers
           ];
 
-          PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
-          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "1";
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
-
           shellHook = ''
-            export PATH="$PWD/node_modules/.bin:$PATH"
-            echo "Playwright configured via Nix (playwright-driver)."
-            echo "Use: pnpm install && pnpm --filter web test"
+            export PLAYWRIGHT_LAUNCH_OPTIONS_EXECUTABLE_PATH="${pkgs.playwright-driver.browsers}/chromium-${chromium-rev}/chrome-linux64/chrome";
           '';
         };
       }

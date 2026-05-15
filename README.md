@@ -24,6 +24,16 @@ pnpm --filter web test
 
 The shell uses `playwright-driver` and sets the required Playwright env vars automatically.
 
+## Run browser tests in Docker
+
+If Playwright is failing on your host (missing browser/system libs), run tests in the bundled Playwright container:
+
+```bash
+pnpm test:web:docker
+```
+
+This builds `Dockerfile.test` and runs `pnpm --filter web test --run` inside `mcr.microsoft.com/playwright`.
+
 ## Using components
 
 To use the components in your app, import them from the `ui` package.
