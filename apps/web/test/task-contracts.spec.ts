@@ -4,7 +4,12 @@ import {
   type TaskState,
   type TaskStatus,
 } from "@/lib/tasks/types"
-import { createInitialTaskState } from "@/lib/tasks/state"
+import {
+  createInitialTaskState,
+  createTask,
+  hasCreateTaskValidationErrors,
+  validateCreateTaskInput,
+} from "@/lib/tasks/state"
 import { summarizeTasks } from "@/lib/tasks/utils"
 import { describe, expect, test } from "vitest"
 
@@ -55,5 +60,37 @@ describe("task domain contracts", () => {
 
     expect(state.priorityFilter).toBe("high")
     expect(state.statusFilter).toBe("completed")
+  })
+
+  test("creates pending tasks from the task creation interface", () => {
+    const task = createTask({
+      title: "Wire create flow",
+      description: "Use canonical task contract",
+      priority: "low",
+      dueDate: "2026-06-03",
+    })
+
+    expect(task.title).toBe("Wire create flow")
+    expect(task.description).toBe("Use canonical task contract")
+    expect(task.priority).toBe("low")
+    expect(task.dueDate).toBe("2026-06-03")
+    expect(task.status).toBe("pending")
+    expect(task.id).toBeTruthy()
+  })
+
+  test("validates required create-task input", () => {
+    const errors = validateCreateTaskInput({
+      title: "",
+      description: "",
+      priority: "medium",
+      dueDate: "",
+    })
+
+    expect(hasCreateTaskValidationErrors(errors)).toBe(true)
+    expect(errors).toEqual({
+      title: "Title is required",
+      description: "Description is required",
+      dueDate: "Due date is required",
+    })
   })
 })
