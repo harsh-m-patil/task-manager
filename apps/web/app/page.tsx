@@ -51,6 +51,8 @@ const selectClassName =
 const primaryButtonClassName = "min-h-11 px-4 sm:min-h-9"
 const taskActionButtonClassName = "min-h-11 px-3 sm:min-h-9"
 
+type TaskViewMode = "list" | "card"
+
 function priorityBadgeClassName(priority: TaskPriority): string {
   if (priority === "high") {
     return "bg-red-100 text-red-800 border-red-200"
@@ -86,6 +88,7 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all")
   const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>("all")
+  const [viewMode, setViewMode] = useState<TaskViewMode>("list")
   const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   const summary = useMemo(() => summarizeTasks(tasks), [tasks])
@@ -468,7 +471,29 @@ export default function Page() {
           <Card role="region" aria-label="Task list">
             <CardHeader>
               <CardTitle>Task list</CardTitle>
-              <CardDescription>Mandatory list view powered by task state.</CardDescription>
+              <CardDescription>
+                Mandatory list view plus optional card view powered by task state.
+              </CardDescription>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant={viewMode === "list" ? "default" : "outline"}
+                  className={primaryButtonClassName}
+                  aria-pressed={viewMode === "list"}
+                  onClick={() => setViewMode("list")}
+                >
+                  List view
+                </Button>
+                <Button
+                  type="button"
+                  variant={viewMode === "card" ? "default" : "outline"}
+                  className={primaryButtonClassName}
+                  aria-pressed={viewMode === "card"}
+                  onClick={() => setViewMode("card")}
+                >
+                  Card view
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {tasks.length === 0 ? (
@@ -479,7 +504,7 @@ export default function Page() {
                 <p className="text-muted-foreground text-sm">
                   No tasks match your current search and filters.
                 </p>
-              ) : (
+              ) : viewMode === "list" ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -536,9 +561,7 @@ export default function Page() {
                               type="button"
                               variant="outline"
                               className={taskActionButtonClassName}
-                              onClick={() =>
-                                toggleTaskStatus(task)
-                              }
+                              onClick={() => toggleTaskStatus(task)}
                               aria-label={
                                 task.status === "completed"
                                   ? `Mark task ${task.title} as pending`
@@ -573,6 +596,97 @@ export default function Page() {
                     ))}
                   </TableBody>
                 </Table>
+              ) : (
+                <ul
+                  role="list"
+                  aria-label="Task cards"
+                  className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+                >
+                  {filteredTasks.map((task) => (
+                    <li key={task.id}>
+                      <Card className={statusRowClassName(task.status)}>
+                        <CardHeader>
+                          <div className="flex items-start justify-between gap-2">
+                            <CardTitle
+                              className={
+                                task.status === "completed"
+                                  ? "text-base line-through"
+                                  : "text-base"
+                              }
+                            >
+                              {task.title}
+                            </CardTitle>
+                            <Badge
+                              variant="outline"
+                              className={priorityBadgeClassName(task.priority)}
+                            >
+                              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                            </Badge>
+                          </div>
+                          <CardDescription>{task.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Status</span>
+                            <Badge
+                              variant={
+                                task.status === "completed" ? "secondary" : "outline"
+                              }
+                              className={
+                                task.status === "completed"
+                                  ? "border-green-200 bg-green-100 text-green-800"
+                                  : "border-slate-300 bg-slate-100 text-slate-700"
+                              }
+                            >
+                              {task.status === "completed" ? "Completed" : "Pending"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Due date</span>
+                            <span>{task.dueDate}</span>
+                          </div>
+                        </CardContent>
+                        <CardFooter>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={taskActionButtonClassName}
+                              onClick={() => toggleTaskStatus(task)}
+                              aria-label={
+                                task.status === "completed"
+                                  ? `Mark task ${task.title} as pending`
+                                  : `Mark task ${task.title} as completed`
+                              }
+                            >
+                              {task.status === "completed"
+                                ? "Mark pending"
+                                : "Mark completed"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={taskActionButtonClassName}
+                              onClick={() => startEditingTask(task)}
+                              aria-label={`Edit task ${task.title}`}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={taskActionButtonClassName}
+                              onClick={() => deleteTask(task)}
+                              aria-label={`Delete task ${task.title}`}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </CardFooter>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
               )}
             </CardContent>
           </Card>

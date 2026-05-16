@@ -109,6 +109,40 @@ describe("dashboard task workflow", () => {
     expect(screen.getByText("Hydrate from storage")).toBeTruthy()
   })
 
+  test("switches between list and card views without losing task context", () => {
+    const storedTask = [
+      {
+        id: "task-1",
+        title: "View toggle task",
+        description: "Keep context while switching",
+        priority: "high",
+        dueDate: "2026-06-03",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTask))
+
+    render(<Page />)
+
+    expect(screen.getByRole("table")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: /card view/i }))
+
+    expect(screen.queryByRole("table")).toBeNull()
+    expect(screen.getByRole("list", { name: /task cards/i })).toBeTruthy()
+    expect(screen.getByText("View toggle task")).toBeTruthy()
+    expect(screen.getByText("Keep context while switching")).toBeTruthy()
+    expect(screen.getByText("2026-06-03")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: /list view/i }))
+
+    expect(screen.getByRole("table")).toBeTruthy()
+    expect(screen.getByText("View toggle task")).toBeTruthy()
+  })
+
   test("starts editing an existing task from the list and prefills the form", () => {
     const storedTask = [
       {
@@ -700,6 +734,137 @@ describe("dashboard task workflow", () => {
 
     expect(screen.getByText("Pending low")).toBeTruthy()
     expect(screen.queryByText("Completed high")).toBeNull()
+  })
+
+  test("applies filters in card view and preserves filter state while switching views", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Pending low",
+        description: "triage",
+        priority: "low",
+        dueDate: "2026-06-12",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Completed high",
+        description: "done",
+        priority: "high",
+        dueDate: "2026-06-14",
+        status: "completed",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Search tasks"), {
+      target: { value: "completed" },
+    })
+    fireEvent.change(screen.getByLabelText("Status filter"), {
+      target: { value: "completed" },
+    })
+    fireEvent.change(screen.getByLabelText("Priority filter"), {
+      target: { value: "high" },
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /card view/i }))
+
+    expect(screen.getByText("Completed high")).toBeTruthy()
+    expect(screen.queryByText("Pending low")).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: /list view/i }))
+
+    expect((screen.getByLabelText("Search tasks") as HTMLInputElement).value).toBe(
+      "completed"
+    )
+    expect((screen.getByLabelText("Status filter") as HTMLSelectElement).value).toBe(
+      "completed"
+    )
+    expect(
+      (screen.getByLabelText("Priority filter") as HTMLSelectElement).value
+    ).toBe("high")
+    expect(screen.getByText("Completed high")).toBeTruthy()
+    expect(screen.queryByText("Pending low")).toBeNull()
+  })
+
+  test("supports edit delete and status toggle actions in card view", () => {
+    const storedTask = [
+      {
+        id: "task-1",
+        title: "Card actions",
+        description: "Exercise actions",
+        priority: "medium",
+        dueDate: "2026-06-22",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTask))
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    render(<Page />)
+
+    fireEvent.click(screen.getByRole("button", { name: /card view/i }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task Card actions" }))
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Card actions edited" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: /save task changes/i }))
+
+    expect(screen.getByText("Card actions edited")).toBeTruthy()
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Mark task Card actions edited as completed",
+      })
+    )
+
+    expect(screen.getByText("Card actions edited").className).toContain("line-through")
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete task Card actions edited" })
+    )
+
+    expect(screen.queryByText("Card actions edited")).toBeNull()
+
+    confirmSpy.mockRestore()
+  })
+
+  test("uses responsive grid classes for card view layout", () => {
+    const storedTask = [
+      {
+        id: "task-1",
+        title: "Responsive card",
+        description: "Grid test",
+        priority: "medium",
+        dueDate: "2026-06-22",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTask))
+
+    render(<Page />)
+
+    fireEvent.click(screen.getByRole("button", { name: /card view/i }))
+
+    const cardList = screen.getByRole("list", { name: /task cards/i })
+    expect(cardList.className).toContain("grid-cols-1")
+    expect(cardList.className).toContain("md:grid-cols-2")
+    expect(cardList.className).toContain("xl:grid-cols-3")
   })
 
   test("combines search with status and priority against canonical task list", () => {
