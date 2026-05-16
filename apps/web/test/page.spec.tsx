@@ -1,7 +1,7 @@
 import Page from "@/app/page"
 import { TASKS_STORAGE_KEY } from "@/lib/tasks/storage"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, test } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 describe("dashboard task workflow", () => {
   beforeEach(() => {
@@ -145,6 +145,129 @@ describe("dashboard task workflow", () => {
       screen.getByRole("button", { name: /save task changes/i })
     ).toBeTruthy()
     expect(screen.getByRole("button", { name: /cancel edit/i })).toBeTruthy()
+  })
+
+  test("provides an accessible delete action and asks for confirmation", () => {
+    const storedTask = [
+      {
+        id: "task-1",
+        title: "Delete me",
+        description: "Task to remove",
+        priority: "medium",
+        dueDate: "2026-06-02",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTask))
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false)
+
+    render(<Page />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete task Delete me" }))
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Delete task \"Delete me\"? This action cannot be undone."
+    )
+
+    confirmSpy.mockRestore()
+  })
+
+  test("keeps task unchanged when deletion is cancelled", () => {
+    const storedTask = [
+      {
+        id: "task-1",
+        title: "Do not delete",
+        description: "Task should remain",
+        priority: "medium",
+        dueDate: "2026-06-02",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTask))
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false)
+
+    render(<Page />)
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete task Do not delete" })
+    )
+
+    expect(screen.getByText("Do not delete")).toBeTruthy()
+    expect(screen.getByLabelText("Total tasks count").textContent).toBe("1")
+    expect(screen.getByLabelText("Pending tasks count").textContent).toBe("1")
+    expect(screen.getByLabelText("Completed tasks count").textContent).toBe("0")
+
+    const persistedTasks = JSON.parse(
+      window.localStorage.getItem(TASKS_STORAGE_KEY) ?? "[]"
+    ) as Array<{ title: string }>
+
+    expect(persistedTasks).toHaveLength(1)
+    expect(persistedTasks[0]?.title).toBe("Do not delete")
+
+    confirmSpy.mockRestore()
+  })
+
+  test("deletes confirmed task, updates counts, and keeps it deleted after refresh", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Completed item",
+        description: "Done work",
+        priority: "high",
+        dueDate: "2026-06-03",
+        status: "completed",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Pending item",
+        description: "Open work",
+        priority: "medium",
+        dueDate: "2026-06-04",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    const { unmount } = render(<Page />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete task Completed item" }))
+
+    expect(screen.queryByText("Completed item")).toBeNull()
+    expect(screen.getByText("Pending item")).toBeTruthy()
+    expect(screen.getByLabelText("Total tasks count").textContent).toBe("1")
+    expect(screen.getByLabelText("Pending tasks count").textContent).toBe("1")
+    expect(screen.getByLabelText("Completed tasks count").textContent).toBe("0")
+
+    const persistedTasks = JSON.parse(
+      window.localStorage.getItem(TASKS_STORAGE_KEY) ?? "[]"
+    ) as Array<{ title: string }>
+
+    expect(persistedTasks).toHaveLength(1)
+    expect(persistedTasks[0]?.title).toBe("Pending item")
+
+    unmount()
+    render(<Page />)
+
+    expect(screen.queryByText("Completed item")).toBeNull()
+    expect(screen.getByText("Pending item")).toBeTruthy()
+
+    confirmSpy.mockRestore()
   })
 
   test("cancelling edit keeps original task unchanged", () => {

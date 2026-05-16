@@ -140,6 +140,26 @@ export default function Page() {
     setErrors({})
   }
 
+  const deleteTask = (task: Task) => {
+    const shouldDelete = window.confirm(
+      `Delete task "${task.title}"? This action cannot be undone.`
+    )
+
+    if (!shouldDelete) {
+      return
+    }
+
+    if (editingTaskId === task.id) {
+      cancelEditingTask()
+    }
+
+    setTasks((current) => {
+      const nextTasks = current.filter((currentTask) => currentTask.id !== task.id)
+      saveTasks(nextTasks)
+      return nextTasks
+    })
+  }
+
   return (
     <div className="min-h-svh bg-background">
       <header className="border-b" role="banner">
@@ -352,14 +372,24 @@ export default function Page() {
                         </TableCell>
                         <TableCell>{task.dueDate}</TableCell>
                         <TableCell>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => startEditingTask(task)}
-                            aria-label={`Edit task ${task.title}`}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => startEditingTask(task)}
+                              aria-label={`Edit task ${task.title}`}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => deleteTask(task)}
+                              aria-label={`Delete task ${task.title}`}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
