@@ -64,9 +64,9 @@ describe("dashboard task workflow", () => {
     expect(
       screen.getByText("Implement create + list + persistence")
     ).toBeTruthy()
-    expect(screen.getByText("Pending")).toBeTruthy()
     const createdTaskRow = screen.getByText("Ship first workflow").closest("tr")
     expect(createdTaskRow).toBeTruthy()
+    expect(createdTaskRow?.textContent).toContain("Pending")
     expect(createdTaskRow?.textContent).toContain("High")
     expect(screen.getByText("2026-06-01")).toBeTruthy()
 
@@ -538,7 +538,9 @@ describe("dashboard task workflow", () => {
       })
     )
 
-    expect(screen.getByText("Completed")).toBeTruthy()
+    expect(screen.getByText("Toggle me").closest("tr")?.textContent).toContain(
+      "Completed"
+    )
     expect(screen.getByText("Toggle me").className).toContain("line-through")
     expect(screen.getByText("Toggle me").closest("tr")?.className).toContain(
       "task-row-completed"
@@ -552,7 +554,9 @@ describe("dashboard task workflow", () => {
       })
     )
 
-    expect(screen.getByText("Pending")).toBeTruthy()
+    expect(screen.getByText("Toggle me").closest("tr")?.textContent).toContain(
+      "Pending"
+    )
     expect(screen.getByText("Toggle me").className).not.toContain("line-through")
     expect(screen.getByText("Toggle me").closest("tr")?.className).toContain(
       "task-row-pending"
@@ -570,11 +574,272 @@ describe("dashboard task workflow", () => {
     unmount()
     render(<Page />)
 
-    expect(screen.getByText("Pending")).toBeTruthy()
+    expect(screen.getByText("Toggle me").closest("tr")?.textContent).toContain(
+      "Pending"
+    )
     expect(
       screen.getByRole("button", {
         name: "Mark task Toggle me as completed",
       })
+    ).toBeTruthy()
+  })
+
+  test("searches tasks by title case-insensitively", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Alpha release",
+        description: "Ship login",
+        priority: "medium",
+        dueDate: "2026-06-12",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Beta release",
+        description: "Ship billing",
+        priority: "high",
+        dueDate: "2026-06-14",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Search tasks"), {
+      target: { value: "ALPHA" },
+    })
+
+    expect(screen.getByText("Alpha release")).toBeTruthy()
+    expect(screen.queryByText("Beta release")).toBeNull()
+  })
+
+  test("searches tasks by description case-insensitively", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Accessibility pass",
+        description: "Keyboard navigation sweep",
+        priority: "low",
+        dueDate: "2026-06-12",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Performance pass",
+        description: "Optimize bundle size",
+        priority: "medium",
+        dueDate: "2026-06-14",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Search tasks"), {
+      target: { value: "KEYBOARD" },
+    })
+
+    expect(screen.getByText("Accessibility pass")).toBeTruthy()
+    expect(screen.queryByText("Performance pass")).toBeNull()
+  })
+
+  test("filters by status and priority", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Pending low",
+        description: "triage",
+        priority: "low",
+        dueDate: "2026-06-12",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Completed high",
+        description: "done",
+        priority: "high",
+        dueDate: "2026-06-14",
+        status: "completed",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Status filter"), {
+      target: { value: "completed" },
+    })
+
+    expect(screen.getByText("Completed high")).toBeTruthy()
+    expect(screen.queryByText("Pending low")).toBeNull()
+
+    fireEvent.change(screen.getByLabelText("Status filter"), {
+      target: { value: "all" },
+    })
+    fireEvent.change(screen.getByLabelText("Priority filter"), {
+      target: { value: "low" },
+    })
+
+    expect(screen.getByText("Pending low")).toBeTruthy()
+    expect(screen.queryByText("Completed high")).toBeNull()
+  })
+
+  test("combines search with status and priority against canonical task list", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Fix auth callback",
+        description: "Auth bug in production",
+        priority: "high",
+        dueDate: "2026-06-12",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Fix auth copy",
+        description: "Auth docs",
+        priority: "medium",
+        dueDate: "2026-06-14",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-3",
+        title: "Fix auth callback",
+        description: "Already done",
+        priority: "high",
+        dueDate: "2026-06-15",
+        status: "completed",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Search tasks"), {
+      target: { value: "auth" },
+    })
+    fireEvent.change(screen.getByLabelText("Status filter"), {
+      target: { value: "pending" },
+    })
+    fireEvent.change(screen.getByLabelText("Priority filter"), {
+      target: { value: "high" },
+    })
+
+    expect(screen.getAllByText("Fix auth callback")).toHaveLength(1)
+    expect(screen.queryByText("Fix auth copy")).toBeNull()
+    expect(screen.queryByText("Already done")).toBeNull()
+  })
+
+  test("clears search and filters back to full list", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Low pending",
+        description: "one",
+        priority: "low",
+        dueDate: "2026-06-12",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "High completed",
+        description: "two",
+        priority: "high",
+        dueDate: "2026-06-14",
+        status: "completed",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Search tasks"), {
+      target: { value: "low" },
+    })
+    fireEvent.change(screen.getByLabelText("Status filter"), {
+      target: { value: "pending" },
+    })
+    fireEvent.change(screen.getByLabelText("Priority filter"), {
+      target: { value: "low" },
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /clear filters/i }))
+
+    expect((screen.getByLabelText("Search tasks") as HTMLInputElement).value).toBe(
+      ""
+    )
+    expect((screen.getByLabelText("Status filter") as HTMLSelectElement).value).toBe(
+      "all"
+    )
+    expect(
+      (screen.getByLabelText("Priority filter") as HTMLSelectElement).value
+    ).toBe("all")
+    expect(screen.getByText("Low pending")).toBeTruthy()
+    expect(screen.getByText("High completed")).toBeTruthy()
+  })
+
+  test("distinguishes empty list from no matching filtered results", () => {
+    render(<Page />)
+
+    expect(
+      screen.getByText(/no tasks yet\. create your first task/i)
+    ).toBeTruthy()
+
+    cleanup()
+
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Only item",
+        description: "single task",
+        priority: "medium",
+        dueDate: "2026-06-20",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Search tasks"), {
+      target: { value: "does-not-match" },
+    })
+
+    expect(
+      screen.getByText(/no tasks match your current search and filters/i)
     ).toBeTruthy()
   })
 

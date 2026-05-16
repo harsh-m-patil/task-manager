@@ -30,8 +30,13 @@ import {
   validateCreateTaskInput,
 } from "@/lib/tasks/state"
 import { loadTasks, saveTasks } from "@/lib/tasks/storage"
-import type { Task, TaskPriority } from "@/lib/tasks/types"
-import { summarizeTasks } from "@/lib/tasks/utils"
+import type {
+  Task,
+  TaskPriority,
+  TaskPriorityFilter,
+  TaskStatusFilter,
+} from "@/lib/tasks/types"
+import { filterTasks, summarizeTasks } from "@/lib/tasks/utils"
 
 const defaultTaskInput: CreateTaskInput = {
   title: "",
@@ -72,8 +77,24 @@ export default function Page() {
   const [taskInput, setTaskInput] = useState<CreateTaskInput>(defaultTaskInput)
   const [errors, setErrors] = useState<CreateTaskValidationErrors>({})
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all")
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>("all")
 
   const summary = useMemo(() => summarizeTasks(tasks), [tasks])
+  const filteredTasks = useMemo(
+    () =>
+      filterTasks(tasks, {
+        searchQuery,
+        statusFilter,
+        priorityFilter,
+      }),
+    [tasks, searchQuery, statusFilter, priorityFilter]
+  )
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    statusFilter !== "all" ||
+    priorityFilter !== "all"
 
   const updateTaskInput = <K extends keyof CreateTaskInput>(
     key: K,
@@ -313,17 +334,69 @@ export default function Page() {
           <Card role="region" aria-label="Search and filters">
             <CardHeader>
               <CardTitle>Search and filters</CardTitle>
-              <CardDescription>Coming soon.</CardDescription>
+              <CardDescription>
+                Search tasks and combine status and priority filters.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="task-search">Search tasks</Label>
                 <Input
                   id="task-search"
                   type="search"
                   placeholder="Search by title or description"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.currentTarget.value)}
                 />
               </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="task-status-filter">Status filter</Label>
+                  <select
+                    id="task-status-filter"
+                    className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.currentTarget.value as TaskStatusFilter)
+                    }
+                  >
+                    <option value="all">All</option>
+                    <option value="pending">Pending</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="task-priority-filter">Priority filter</Label>
+                  <select
+                    id="task-priority-filter"
+                    className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    value={priorityFilter}
+                    onChange={(event) =>
+                      setPriorityFilter(event.currentTarget.value as TaskPriorityFilter)
+                    }
+                  >
+                    <option value="all">All priorities</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSearchQuery("")
+                  setStatusFilter("all")
+                  setPriorityFilter("all")
+                }}
+                disabled={!hasActiveFilters}
+              >
+                Clear filters
+              </Button>
             </CardContent>
           </Card>
 
@@ -337,6 +410,10 @@ export default function Page() {
                 <p className="text-muted-foreground text-sm">
                   No tasks yet. Create your first task using the form above.
                 </p>
+              ) : filteredTasks.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No tasks match your current search and filters.
+                </p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -349,7 +426,7 @@ export default function Page() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tasks.map((task) => (
+                    {filteredTasks.map((task) => (
                       <TableRow key={task.id} className={statusRowClassName(task.status)}>
                         <TableCell>
                           <p

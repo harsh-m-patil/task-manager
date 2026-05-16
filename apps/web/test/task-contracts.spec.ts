@@ -10,7 +10,7 @@ import {
   hasCreateTaskValidationErrors,
   validateCreateTaskInput,
 } from "@/lib/tasks/state"
-import { summarizeTasks } from "@/lib/tasks/utils"
+import { filterTasks, summarizeTasks } from "@/lib/tasks/utils"
 import { describe, expect, test } from "vitest"
 
 describe("task domain contracts", () => {
@@ -48,6 +48,40 @@ describe("task domain contracts", () => {
       pending: 1,
       completed: 1,
     })
+  })
+
+  test("filters task lists by search, status, and priority", () => {
+    const tasks: Task[] = [
+      {
+        id: "task-1",
+        title: "Auth flow",
+        description: "Fix callback",
+        priority: "high",
+        dueDate: "2026-05-20",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Docs",
+        description: "Auth user guide",
+        priority: "low",
+        dueDate: "2026-05-21",
+        status: "completed",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    const filtered = filterTasks(tasks, {
+      searchQuery: "AUTH",
+      statusFilter: "pending",
+      priorityFilter: "high",
+    })
+
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.id).toBe("task-1")
   })
 
   test("keeps priority and status unions constrained", () => {
