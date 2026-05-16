@@ -3,6 +3,10 @@ import { TASKS_STORAGE_KEY } from "@/lib/tasks/storage"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
+function openTaskDialog() {
+  fireEvent.click(screen.getByRole("button", { name: /^new task$/i }))
+}
+
 describe("dashboard task workflow", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -21,7 +25,6 @@ describe("dashboard task workflow", () => {
     expect(screen.getByRole("banner")).toBeTruthy()
     expect(screen.getByRole("main")).toBeTruthy()
 
-    expect(screen.getByRole("region", { name: /primary actions/i })).toBeTruthy()
     expect(
       screen.getByRole("region", { name: /search and filters/i })
     ).toBeTruthy()
@@ -45,6 +48,8 @@ describe("dashboard task workflow", () => {
   test("creates a task, renders it in list view, and updates derived counts", () => {
     render(<Page />)
 
+    openTaskDialog()
+
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Ship first workflow" },
     })
@@ -58,7 +63,7 @@ describe("dashboard task workflow", () => {
       target: { value: "2026-06-01" },
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /new task/i }))
+    fireEvent.click(screen.getByRole("button", { name: /create task/i }))
 
     expect(screen.getByText("Ship first workflow")).toBeTruthy()
     expect(
@@ -78,7 +83,9 @@ describe("dashboard task workflow", () => {
   test("blocks invalid submit with field-adjacent validation messages", () => {
     render(<Page />)
 
-    fireEvent.click(screen.getByRole("button", { name: /new task/i }))
+    openTaskDialog()
+
+    fireEvent.click(screen.getByRole("button", { name: /create task/i }))
 
     expect(screen.getByText("Title is required")).toBeTruthy()
     expect(screen.getByText("Description is required")).toBeTruthy()
@@ -344,6 +351,8 @@ describe("dashboard task workflow", () => {
   test("persists created tasks to local storage", () => {
     render(<Page />)
 
+    openTaskDialog()
+
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Persist me" },
     })
@@ -357,7 +366,7 @@ describe("dashboard task workflow", () => {
       target: { value: "2026-06-10" },
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /new task/i }))
+    fireEvent.click(screen.getByRole("button", { name: /create task/i }))
 
     const rawValue = window.localStorage.getItem(TASKS_STORAGE_KEY)
     expect(rawValue).toBeTruthy()
@@ -1137,6 +1146,8 @@ describe("dashboard task workflow", () => {
 
     render(<Page />)
 
+    openTaskDialog()
+
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Feedback task" },
     })
@@ -1147,7 +1158,7 @@ describe("dashboard task workflow", () => {
       target: { value: "2026-06-20" },
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /new task/i }))
+    fireEvent.click(screen.getByRole("button", { name: /create task/i }))
 
     expect(screen.getByText("Task created successfully")).toBeTruthy()
 
@@ -1171,6 +1182,8 @@ describe("dashboard task workflow", () => {
   test("supports keyboard shortcuts for submit, cancel edit, and search focus", () => {
     render(<Page />)
 
+    openTaskDialog()
+
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Keyboard task" },
     })
@@ -1181,7 +1194,7 @@ describe("dashboard task workflow", () => {
       target: { value: "2026-06-18" },
     })
 
-    const taskForm = screen.getByRole("button", { name: /new task/i }).closest("form")
+    const taskForm = screen.getByRole("button", { name: /create task/i }).closest("form")
     expect(taskForm).toBeTruthy()
 
     fireEvent.keyDown(taskForm!, {
@@ -1197,7 +1210,12 @@ describe("dashboard task workflow", () => {
       target: { value: "Unsaved keyboard edit" },
     })
 
-    fireEvent.keyDown(taskForm!, {
+    const editForm = screen
+      .getByRole("button", { name: /save task changes/i })
+      .closest("form")
+    expect(editForm).toBeTruthy()
+
+    fireEvent.keyDown(editForm!, {
       key: "Escape",
       code: "Escape",
     })
@@ -1217,9 +1235,12 @@ describe("dashboard task workflow", () => {
   test("uses touch-friendly sizing for high-frequency controls", () => {
     render(<Page />)
 
-    expect(screen.getByRole("button", { name: /new task/i }).className).toContain(
+    expect(screen.getByRole("button", { name: /^new task$/i }).className).toContain(
       "min-h-11"
     )
+
+    openTaskDialog()
+
     expect((screen.getByLabelText("Priority") as HTMLSelectElement).className).toContain(
       "min-h-11"
     )
@@ -1237,7 +1258,7 @@ describe("dashboard task workflow", () => {
       target: { value: "2026-06-19" },
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /new task/i }))
+    fireEvent.click(screen.getByRole("button", { name: /create task/i }))
 
     expect(
       screen.getByRole("button", {

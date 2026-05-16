@@ -11,6 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import {
@@ -43,10 +50,10 @@ import type {
 import { filterTasks, isTaskOverdue, sortTasks, summarizeTasks } from "@/lib/tasks/utils"
 
 const selectClassName =
-  "border-input bg-background ring-offset-background focus-visible:ring-ring focus-visible:ring-3 flex min-h-11 w-full rounded-md border px-3 py-2 text-sm"
+  "border-input bg-background ring-offset-background focus-visible:ring-ring focus-visible:ring-3 flex h-9 w-full rounded-md border px-3 py-2 text-sm"
 
-const primaryButtonClassName = "min-h-11 px-4 sm:min-h-9"
-const taskActionButtonClassName = "min-h-11 px-3 sm:min-h-9"
+const primaryButtonClassName = "h-9 px-4"
+const taskActionButtonClassName = "h-9 px-3"
 
 type TaskViewMode = "list" | "card"
 
@@ -77,6 +84,7 @@ export default function Page() {
   const [workflow, setWorkflow] = useState(() =>
     createTaskWorkflowState(loadTasks())
   )
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all")
   const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>("all")
@@ -111,17 +119,33 @@ export default function Page() {
     setWorkflow((current) => updateTaskWorkflowDraft(current, key, value))
   }
 
-  const cancelEditingTask = () => {
+  const openCreateTaskDialog = () => {
     setWorkflow((current) => cancelTaskEditing(current))
+    setIsTaskDialogOpen(true)
+  }
+
+  const closeTaskDialog = () => {
+    setWorkflow((current) => cancelTaskEditing(current))
+    setIsTaskDialogOpen(false)
   }
 
   const startEditingTask = (task: Task) => {
     setWorkflow((current) => startTaskEditing(current, task.id))
+    setIsTaskDialogOpen(true)
   }
 
   const onSubmitTask = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setWorkflow((current) => submitTaskWorkflow(current))
+
+    setWorkflow((current) => {
+      const nextState = submitTaskWorkflow(current)
+
+      if (Object.keys(nextState.errors).length === 0) {
+        setIsTaskDialogOpen(false)
+      }
+
+      return nextState
+    })
   }
 
   const toggleTaskStatus = (task: Task) => {
@@ -184,165 +208,79 @@ export default function Page() {
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[2fr_1fr] lg:px-8">
+      <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         <p role="status" aria-live="polite" className="sr-only">
           {workflow.feedbackMessage}
         </p>
 
-        <div className="space-y-6">
-          <Card role="region" aria-label="Primary actions">
-            <CardHeader>
-              <CardTitle>
-                {workflow.editingTaskId ? "Edit task" : "Create a task"}
-              </CardTitle>
-              <CardDescription>
-                {workflow.editingTaskId
-                  ? "Update title, description, priority, and due date for the selected task."
-                  : "Add title, description, priority, and due date to create a pending task."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form
-                className="space-y-4"
-                onSubmit={onSubmitTask}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape" && workflow.editingTaskId) {
-                    event.preventDefault()
-                    cancelEditingTask()
-                    return
-                  }
+        <section
+          role="region"
+          aria-label="Summary and metadata"
+          className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="px-3 py-1 text-sm">
+              <span className="text-muted-foreground mr-2">Total tasks</span>
+              <output aria-label="Total tasks count" className="font-semibold">
+                {summary.total}
+              </output>
+            </Badge>
+            <Badge variant="outline" className="px-3 py-1 text-sm">
+              <span className="text-muted-foreground mr-2">Pending tasks</span>
+              <output aria-label="Pending tasks count" className="font-semibold">
+                {summary.pending}
+              </output>
+            </Badge>
+            <Badge variant="outline" className="px-3 py-1 text-sm">
+              <span className="text-muted-foreground mr-2">Completed tasks</span>
+              <output aria-label="Completed tasks count" className="font-semibold">
+                {summary.completed}
+              </output>
+            </Badge>
+          </div>
 
-                  if (
-                    event.key === "Enter" &&
-                    (event.metaKey || event.ctrlKey) &&
-                    event.currentTarget instanceof HTMLFormElement
-                  ) {
-                    event.preventDefault()
-                    event.currentTarget.requestSubmit()
-                  }
-                }}
-                noValidate
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="task-title">Title</Label>
-                  <Input
-                    id="task-title"
-                    value={workflow.draft.title}
-                    onChange={(event) =>
-                      updateTaskInput("title", event.currentTarget.value)
-                    }
-                    aria-invalid={Boolean(workflow.errors.title)}
-                    aria-describedby={
-                      workflow.errors.title ? "task-title-error" : undefined
-                    }
-                  />
-                  {workflow.errors.title ? (
-                    <p id="task-title-error" className="text-sm text-red-600">
-                      {workflow.errors.title}
-                    </p>
-                  ) : null}
-                </div>
+          <Button
+            type="button"
+            className={primaryButtonClassName}
+            onClick={openCreateTaskDialog}
+          >
+            New Task
+          </Button>
+        </section>
 
-                <div className="space-y-2">
-                  <Label htmlFor="task-description">Description</Label>
-                  <Textarea
-                    id="task-description"
-                    value={workflow.draft.description}
-                    onChange={(event) =>
-                      updateTaskInput("description", event.currentTarget.value)
-                    }
-                    aria-invalid={Boolean(workflow.errors.description)}
-                    aria-describedby={
-                      workflow.errors.description
-                        ? "task-description-error"
-                        : undefined
-                    }
-                  />
-                  {workflow.errors.description ? (
-                    <p id="task-description-error" className="text-sm text-red-600">
-                      {workflow.errors.description}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="task-priority">Priority</Label>
-                    <select
-                      id="task-priority"
-                      className={selectClassName}
-                      value={workflow.draft.priority}
-                      onChange={(event) =>
-                        updateTaskInput(
-                          "priority",
-                          event.currentTarget.value as TaskPriority
-                        )
-                      }
-                      aria-invalid={Boolean(workflow.errors.priority)}
-                      aria-describedby={
-                        workflow.errors.priority ? "task-priority-error" : undefined
-                      }
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                    {workflow.errors.priority ? (
-                      <p id="task-priority-error" className="text-sm text-red-600">
-                        {workflow.errors.priority}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="task-due-date">Due date</Label>
-                    <Input
-                      id="task-due-date"
-                      type="date"
-                      value={workflow.draft.dueDate}
-                      onChange={(event) =>
-                        updateTaskInput("dueDate", event.currentTarget.value)
-                      }
-                      aria-invalid={Boolean(workflow.errors.dueDate)}
-                      aria-describedby={
-                        workflow.errors.dueDate ? "task-due-date-error" : undefined
-                      }
-                    />
-                    {workflow.errors.dueDate ? (
-                      <p id="task-due-date-error" className="text-sm text-red-600">
-                        {workflow.errors.dueDate}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button type="submit" className={primaryButtonClassName}>
-                    {workflow.editingTaskId ? "Save task changes" : "New Task"}
-                  </Button>
-                  {workflow.editingTaskId ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={primaryButtonClassName}
-                      onClick={cancelEditingTask}
-                    >
-                      Cancel edit
-                    </Button>
-                  ) : null}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card role="region" aria-label="Search and filters">
-            <CardHeader>
-              <CardTitle>Search and filters</CardTitle>
-              <CardDescription>
-                Search tasks, combine filters, and sort by due date.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <Card role="region" aria-label="Task list">
+          <CardHeader>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <CardTitle>Task list</CardTitle>
+                <CardDescription>
+                  Your tasks stay front and center, with filters and view controls inline.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={viewMode === "list" ? "default" : "outline"}
+                  className={primaryButtonClassName}
+                  aria-pressed={viewMode === "list"}
+                  onClick={() => setViewMode("list")}
+                >
+                  List view
+                </Button>
+                <Button
+                  type="button"
+                  variant={viewMode === "card" ? "default" : "outline"}
+                  className={primaryButtonClassName}
+                  aria-pressed={viewMode === "card"}
+                  onClick={() => setViewMode("card")}
+                >
+                  Card view
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <section role="region" aria-label="Search and filters" className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="task-search">Search tasks</Label>
                 <Input
@@ -352,7 +290,7 @@ export default function Page() {
                   placeholder="Search by title or description"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                  className="min-h-11"
+                  className="h-9"
                 />
               </div>
 
@@ -421,78 +359,140 @@ export default function Page() {
               >
                 Clear filters
               </Button>
-            </CardContent>
-          </Card>
+            </section>
 
-          <Card role="region" aria-label="Task list">
-            <CardHeader>
-              <CardTitle>Task list</CardTitle>
-              <CardDescription>
-                Mandatory list view plus optional card view powered by task state.
-              </CardDescription>
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant={viewMode === "list" ? "default" : "outline"}
-                  className={primaryButtonClassName}
-                  aria-pressed={viewMode === "list"}
-                  onClick={() => setViewMode("list")}
-                >
-                  List view
-                </Button>
-                <Button
-                  type="button"
-                  variant={viewMode === "card" ? "default" : "outline"}
-                  className={primaryButtonClassName}
-                  aria-pressed={viewMode === "card"}
-                  onClick={() => setViewMode("card")}
-                >
-                  Card view
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {workflow.tasks.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No tasks yet. Create your first task using the form above.
-                </p>
-              ) : visibleTasks.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No tasks match your current search and filters.
-                </p>
-              ) : viewMode === "list" ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Task</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Due date</TableHead>
-                      <TableHead>Actions</TableHead>
+            {workflow.tasks.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No tasks yet. Create your first task to get started.
+              </p>
+            ) : visibleTasks.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No tasks match your current search and filters.
+              </p>
+            ) : viewMode === "list" ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Task</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Due date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleTasks.map((task) => (
+                    <TableRow key={task.id} className={statusRowClassName(task)}>
+                      <TableCell>
+                        <p
+                          className={
+                            task.status === "completed"
+                              ? "font-medium line-through"
+                              : "font-medium"
+                          }
+                        >
+                          {task.title}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {task.description}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={task.status === "completed" ? "secondary" : "outline"}
+                          className={
+                            task.status === "completed"
+                              ? "border-green-200 bg-green-100 text-green-800"
+                              : "border-slate-300 bg-slate-100 text-slate-700"
+                          }
+                        >
+                          {task.status === "completed" ? "Completed" : "Pending"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={priorityBadgeClassName(task.priority)}
+                        >
+                          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{task.dueDate}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={taskActionButtonClassName}
+                            onClick={() => toggleTaskStatus(task)}
+                            aria-label={
+                              task.status === "completed"
+                                ? `Mark task ${task.title} as pending`
+                                : `Mark task ${task.title} as completed`
+                            }
+                          >
+                            {task.status === "completed"
+                              ? "Mark pending"
+                              : "Mark completed"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={taskActionButtonClassName}
+                            onClick={() => startEditingTask(task)}
+                            aria-label={`Edit task ${task.title}`}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={taskActionButtonClassName}
+                            onClick={() => deleteTask(task)}
+                            aria-label={`Delete task ${task.title}`}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visibleTasks.map((task) => (
-                      <TableRow key={task.id} className={statusRowClassName(task)}>
-                        <TableCell>
-                          <p
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <ul
+                role="list"
+                aria-label="Task cards"
+                className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+              >
+                {visibleTasks.map((task) => (
+                  <li key={task.id}>
+                    <Card className={statusRowClassName(task)}>
+                      <CardHeader>
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle
                             className={
                               task.status === "completed"
-                                ? "font-medium line-through"
-                                : "font-medium"
+                                ? "text-base line-through"
+                                : "text-base"
                             }
                           >
                             {task.title}
-                          </p>
-                          <p className="text-muted-foreground text-xs">
-                            {task.description}
-                          </p>
-                        </TableCell>
-                        <TableCell>
+                          </CardTitle>
                           <Badge
-                            variant={
-                              task.status === "completed" ? "secondary" : "outline"
-                            }
+                            variant="outline"
+                            className={priorityBadgeClassName(task.priority)}
+                          >
+                            {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                          </Badge>
+                        </div>
+                        <CardDescription>{task.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">Status</span>
+                          <Badge
+                            variant={task.status === "completed" ? "secondary" : "outline"}
                             className={
                               task.status === "completed"
                                 ? "border-green-200 bg-green-100 text-green-800"
@@ -501,182 +501,210 @@ export default function Page() {
                           >
                             {task.status === "completed" ? "Completed" : "Pending"}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">Due date</span>
+                          <span>{task.dueDate}</span>
+                        </div>
+                      </CardContent>
+                      <CardFooter>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
                             variant="outline"
-                            className={priorityBadgeClassName(task.priority)}
+                            className={taskActionButtonClassName}
+                            onClick={() => toggleTaskStatus(task)}
+                            aria-label={
+                              task.status === "completed"
+                                ? `Mark task ${task.title} as pending`
+                                : `Mark task ${task.title} as completed`
+                            }
                           >
-                            {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{task.dueDate}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={taskActionButtonClassName}
-                              onClick={() => toggleTaskStatus(task)}
-                              aria-label={
-                                task.status === "completed"
-                                  ? `Mark task ${task.title} as pending`
-                                  : `Mark task ${task.title} as completed`
-                              }
-                            >
-                              {task.status === "completed"
-                                ? "Mark pending"
-                                : "Mark completed"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={taskActionButtonClassName}
-                              onClick={() => startEditingTask(task)}
-                              aria-label={`Edit task ${task.title}`}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={taskActionButtonClassName}
-                              onClick={() => deleteTask(task)}
-                              aria-label={`Delete task ${task.title}`}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <ul
-                  role="list"
-                  aria-label="Task cards"
-                  className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
-                >
-                  {visibleTasks.map((task) => (
-                    <li key={task.id}>
-                      <Card className={statusRowClassName(task)}>
-                        <CardHeader>
-                          <div className="flex items-start justify-between gap-2">
-                            <CardTitle
-                              className={
-                                task.status === "completed"
-                                  ? "text-base line-through"
-                                  : "text-base"
-                              }
-                            >
-                              {task.title}
-                            </CardTitle>
-                            <Badge
-                              variant="outline"
-                              className={priorityBadgeClassName(task.priority)}
-                            >
-                              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                            </Badge>
-                          </div>
-                          <CardDescription>{task.description}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-muted-foreground">Status</span>
-                            <Badge
-                              variant={
-                                task.status === "completed" ? "secondary" : "outline"
-                              }
-                              className={
-                                task.status === "completed"
-                                  ? "border-green-200 bg-green-100 text-green-800"
-                                  : "border-slate-300 bg-slate-100 text-slate-700"
-                              }
-                            >
-                              {task.status === "completed" ? "Completed" : "Pending"}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-muted-foreground">Due date</span>
-                            <span>{task.dueDate}</span>
-                          </div>
-                        </CardContent>
-                        <CardFooter>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={taskActionButtonClassName}
-                              onClick={() => toggleTaskStatus(task)}
-                              aria-label={
-                                task.status === "completed"
-                                  ? `Mark task ${task.title} as pending`
-                                  : `Mark task ${task.title} as completed`
-                              }
-                            >
-                              {task.status === "completed"
-                                ? "Mark pending"
-                                : "Mark completed"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={taskActionButtonClassName}
-                              onClick={() => startEditingTask(task)}
-                              aria-label={`Edit task ${task.title}`}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={taskActionButtonClassName}
-                              onClick={() => deleteTask(task)}
-                              aria-label={`Delete task ${task.title}`}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </CardFooter>
-                      </Card>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card role="region" aria-label="Summary and metadata">
-          <CardHeader>
-            <CardTitle>Summary and metadata</CardTitle>
-            <CardDescription>Counts derived from canonical task data.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <span className="text-muted-foreground">Total tasks</span>
-              <output aria-label="Total tasks count" className="font-medium">
-                {summary.total}
-              </output>
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <span className="text-muted-foreground">Pending tasks</span>
-              <output aria-label="Pending tasks count" className="font-medium">
-                {summary.pending}
-              </output>
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <span className="text-muted-foreground">Completed tasks</span>
-              <output aria-label="Completed tasks count" className="font-medium">
-                {summary.completed}
-              </output>
-            </div>
+                            {task.status === "completed"
+                              ? "Mark pending"
+                              : "Mark completed"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={taskActionButtonClassName}
+                            onClick={() => startEditingTask(task)}
+                            aria-label={`Edit task ${task.title}`}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={taskActionButtonClassName}
+                            onClick={() => deleteTask(task)}
+                            aria-label={`Delete task ${task.title}`}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
-          <CardFooter className="justify-end">
-            <Button variant="outline">Open details</Button>
-          </CardFooter>
         </Card>
+
+        <Dialog
+          open={isTaskDialogOpen}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              closeTaskDialog()
+              return
+            }
+
+            setIsTaskDialogOpen(true)
+          }}
+        >
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {workflow.editingTaskId ? "Edit task" : "Create a task"}
+              </DialogTitle>
+              <DialogDescription>
+                {workflow.editingTaskId
+                  ? "Update title, description, priority, and due date for the selected task."
+                  : "Add title, description, priority, and due date to create a pending task."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <form
+              className="space-y-4"
+              onSubmit={onSubmitTask}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && workflow.editingTaskId) {
+                  event.preventDefault()
+                  closeTaskDialog()
+                  return
+                }
+
+                if (
+                  event.key === "Enter" &&
+                  (event.metaKey || event.ctrlKey) &&
+                  event.currentTarget instanceof HTMLFormElement
+                ) {
+                  event.preventDefault()
+                  event.currentTarget.requestSubmit()
+                }
+              }}
+              noValidate
+            >
+              <div className="space-y-2">
+                <Label htmlFor="task-title">Title</Label>
+                <Input
+                  id="task-title"
+                  value={workflow.draft.title}
+                  onChange={(event) =>
+                    updateTaskInput("title", event.currentTarget.value)
+                  }
+                  aria-invalid={Boolean(workflow.errors.title)}
+                  aria-describedby={
+                    workflow.errors.title ? "task-title-error" : undefined
+                  }
+                />
+                {workflow.errors.title ? (
+                  <p id="task-title-error" className="text-sm text-red-600">
+                    {workflow.errors.title}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="task-description">Description</Label>
+                <Textarea
+                  id="task-description"
+                  value={workflow.draft.description}
+                  onChange={(event) =>
+                    updateTaskInput("description", event.currentTarget.value)
+                  }
+                  aria-invalid={Boolean(workflow.errors.description)}
+                  aria-describedby={
+                    workflow.errors.description
+                      ? "task-description-error"
+                      : undefined
+                  }
+                />
+                {workflow.errors.description ? (
+                  <p id="task-description-error" className="text-sm text-red-600">
+                    {workflow.errors.description}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="task-priority">Priority</Label>
+                  <select
+                    id="task-priority"
+                    className={selectClassName}
+                    value={workflow.draft.priority}
+                    onChange={(event) =>
+                      updateTaskInput(
+                        "priority",
+                        event.currentTarget.value as TaskPriority
+                      )
+                    }
+                    aria-invalid={Boolean(workflow.errors.priority)}
+                    aria-describedby={
+                      workflow.errors.priority ? "task-priority-error" : undefined
+                    }
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                  {workflow.errors.priority ? (
+                    <p id="task-priority-error" className="text-sm text-red-600">
+                      {workflow.errors.priority}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="task-due-date">Due date</Label>
+                  <Input
+                    id="task-due-date"
+                    type="date"
+                    value={workflow.draft.dueDate}
+                    onChange={(event) =>
+                      updateTaskInput("dueDate", event.currentTarget.value)
+                    }
+                    aria-invalid={Boolean(workflow.errors.dueDate)}
+                    aria-describedby={
+                      workflow.errors.dueDate ? "task-due-date-error" : undefined
+                    }
+                  />
+                  {workflow.errors.dueDate ? (
+                    <p id="task-due-date-error" className="text-sm text-red-600">
+                      {workflow.errors.dueDate}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button type="submit" className={primaryButtonClassName}>
+                  {workflow.editingTaskId ? "Save task changes" : "Create task"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={primaryButtonClassName}
+                  onClick={closeTaskDialog}
+                >
+                  {workflow.editingTaskId ? "Cancel edit" : "Cancel"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   )
