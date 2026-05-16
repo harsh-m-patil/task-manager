@@ -6,6 +6,8 @@ export type TaskStatusFilter = "all" | TaskStatus
 
 export type TaskPriorityFilter = "all" | TaskPriority
 
+export type TaskSortOption = "default" | "due-date-asc" | "due-date-desc"
+
 export interface Task {
   id: string
   title: string
@@ -22,4 +24,5 @@ export interface TaskState {
   searchQuery: string
   statusFilter: TaskStatusFilter
   priorityFilter: TaskPriorityFilter
+  sortBy: TaskSortOption
 }

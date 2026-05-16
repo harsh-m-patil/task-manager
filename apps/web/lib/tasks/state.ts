@@ -16,6 +16,7 @@ export const defaultTaskState: TaskState = {
   searchQuery: "",
   statusFilter: "all",
   priorityFilter: "all",
+  sortBy: "default",
 }
 
 export function createInitialTaskState(

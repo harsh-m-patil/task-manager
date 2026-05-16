@@ -34,9 +34,10 @@ import type {
   Task,
   TaskPriority,
   TaskPriorityFilter,
+  TaskSortOption,
   TaskStatusFilter,
 } from "@/lib/tasks/types"
-import { filterTasks, summarizeTasks } from "@/lib/tasks/utils"
+import { filterTasks, isTaskOverdue, sortTasks, summarizeTasks } from "@/lib/tasks/utils"
 
 const defaultTaskInput: CreateTaskInput = {
   title: "",
@@ -65,10 +66,15 @@ function priorityBadgeClassName(priority: TaskPriority): string {
   return "bg-emerald-100 text-emerald-800 border-emerald-200"
 }
 
-function statusRowClassName(status: Task["status"]): string {
-  return status === "completed"
-    ? "task-row-completed opacity-70"
-    : "task-row-pending"
+function statusRowClassName(task: Task): string {
+  const baseClassName =
+    task.status === "completed" ? "task-row-completed opacity-70" : "task-row-pending"
+
+  if (isTaskOverdue(task)) {
+    return `${baseClassName} task-row-overdue border-red-300 bg-red-50/60`
+  }
+
+  return baseClassName
 }
 
 function toTaskInput(task: Task): CreateTaskInput {
@@ -88,7 +94,9 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all")
   const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>("all")
+  const [sortBy, setSortBy] = useState<TaskSortOption>("default")
   const [viewMode, setViewMode] = useState<TaskViewMode>("list")
+  const [feedbackMessage, setFeedbackMessage] = useState("")
   const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   const summary = useMemo(() => summarizeTasks(tasks), [tasks])
@@ -101,10 +109,15 @@ export default function Page() {
       }),
     [tasks, searchQuery, statusFilter, priorityFilter]
   )
+  const visibleTasks = useMemo(
+    () => sortTasks(filteredTasks, { sortBy }),
+    [filteredTasks, sortBy]
+  )
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
     statusFilter !== "all" ||
-    priorityFilter !== "all"
+    priorityFilter !== "all" ||
+    sortBy !== "default"
 
   const updateTaskInput = <K extends keyof CreateTaskInput>(
     key: K,
@@ -156,6 +169,7 @@ export default function Page() {
       })
 
       cancelEditingTask()
+      setFeedbackMessage("Task updated successfully")
       return
     }
 
@@ -169,6 +183,7 @@ export default function Page() {
 
     setTaskInput(defaultTaskInput)
     setErrors({})
+    setFeedbackMessage("Task created successfully")
   }
 
   const toggleTaskStatus = (task: Task) => {
@@ -211,6 +226,7 @@ export default function Page() {
       saveTasks(nextTasks)
       return nextTasks
     })
+    setFeedbackMessage("Task deleted successfully")
   }
 
   useEffect(() => {
@@ -254,6 +270,10 @@ export default function Page() {
       </header>
 
       <main className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[2fr_1fr] lg:px-8">
+        <p role="status" aria-live="polite" className="sr-only">
+          {feedbackMessage}
+        </p>
+
         <div className="space-y-6">
           <Card role="region" aria-label="Primary actions">
             <CardHeader>
@@ -400,7 +420,7 @@ export default function Page() {
             <CardHeader>
               <CardTitle>Search and filters</CardTitle>
               <CardDescription>
-                Search tasks and combine status and priority filters.
+                Search tasks, combine filters, and sort by due date.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -417,7 +437,7 @@ export default function Page() {
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="task-status-filter">Status filter</Label>
                   <select
@@ -450,6 +470,22 @@ export default function Page() {
                     <option value="high">High</option>
                   </select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="task-sort-by">Sort by</Label>
+                  <select
+                    id="task-sort-by"
+                    className={selectClassName}
+                    value={sortBy}
+                    onChange={(event) =>
+                      setSortBy(event.currentTarget.value as TaskSortOption)
+                    }
+                  >
+                    <option value="default">Default</option>
+                    <option value="due-date-asc">Due date (earliest first)</option>
+                    <option value="due-date-desc">Due date (latest first)</option>
+                  </select>
+                </div>
               </div>
 
               <Button
@@ -460,6 +496,7 @@ export default function Page() {
                   setSearchQuery("")
                   setStatusFilter("all")
                   setPriorityFilter("all")
+                  setSortBy("default")
                 }}
                 disabled={!hasActiveFilters}
               >
@@ -500,7 +537,7 @@ export default function Page() {
                 <p className="text-muted-foreground text-sm">
                   No tasks yet. Create your first task using the form above.
                 </p>
-              ) : filteredTasks.length === 0 ? (
+              ) : visibleTasks.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
                   No tasks match your current search and filters.
                 </p>
@@ -516,8 +553,8 @@ export default function Page() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTasks.map((task) => (
-                      <TableRow key={task.id} className={statusRowClassName(task.status)}>
+                    {visibleTasks.map((task) => (
+                      <TableRow key={task.id} className={statusRowClassName(task)}>
                         <TableCell>
                           <p
                             className={
@@ -602,9 +639,9 @@ export default function Page() {
                   aria-label="Task cards"
                   className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
                 >
-                  {filteredTasks.map((task) => (
+                  {visibleTasks.map((task) => (
                     <li key={task.id}>
-                      <Card className={statusRowClassName(task.status)}>
+                      <Card className={statusRowClassName(task)}>
                         <CardHeader>
                           <div className="flex items-start justify-between gap-2">
                             <CardTitle

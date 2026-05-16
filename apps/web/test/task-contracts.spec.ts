@@ -22,6 +22,7 @@ describe("task domain contracts", () => {
       searchQuery: "",
       statusFilter: "all",
       priorityFilter: "all",
+      sortBy: "default",
     })
   })
 

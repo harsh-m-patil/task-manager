@@ -957,6 +957,9 @@ describe("dashboard task workflow", () => {
     fireEvent.change(screen.getByLabelText("Priority filter"), {
       target: { value: "low" },
     })
+    fireEvent.change(screen.getByLabelText("Sort by"), {
+      target: { value: "due-date-desc" },
+    })
 
     fireEvent.click(screen.getByRole("button", { name: /clear filters/i }))
 
@@ -969,6 +972,9 @@ describe("dashboard task workflow", () => {
     expect(
       (screen.getByLabelText("Priority filter") as HTMLSelectElement).value
     ).toBe("all")
+    expect((screen.getByLabelText("Sort by") as HTMLSelectElement).value).toBe(
+      "default"
+    )
     expect(screen.getByText("Low pending")).toBeTruthy()
     expect(screen.getByText("High completed")).toBeTruthy()
   })
@@ -1006,6 +1012,160 @@ describe("dashboard task workflow", () => {
     expect(
       screen.getByText(/no tasks match your current search and filters/i)
     ).toBeTruthy()
+  })
+
+  test("highlights overdue pending tasks without flagging completed tasks", () => {
+    vi.useFakeTimers()
+
+    try {
+      vi.setSystemTime(new Date("2026-06-12T09:00:00.000Z"))
+
+      const storedTasks = [
+        {
+          id: "task-1",
+          title: "Pending overdue",
+          description: "Should be highlighted",
+          priority: "medium",
+          dueDate: "2026-06-10",
+          status: "pending",
+          createdAt: "2026-05-15T00:00:00.000Z",
+          updatedAt: "2026-05-15T00:00:00.000Z",
+        },
+        {
+          id: "task-2",
+          title: "Completed overdue",
+          description: "Should not be highlighted",
+          priority: "high",
+          dueDate: "2026-06-10",
+          status: "completed",
+          createdAt: "2026-05-15T00:00:00.000Z",
+          updatedAt: "2026-05-15T00:00:00.000Z",
+        },
+      ]
+
+      window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+      render(<Page />)
+
+      const pendingRow = screen.getByText("Pending overdue").closest("tr")
+      const completedRow = screen.getByText("Completed overdue").closest("tr")
+
+      expect(pendingRow?.className).toContain("task-row-overdue")
+      expect(completedRow?.className).not.toContain("task-row-overdue")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("sorts tasks by due date while preserving search and filters", () => {
+    const storedTasks = [
+      {
+        id: "task-1",
+        title: "Alpha soon",
+        description: "auth work",
+        priority: "high",
+        dueDate: "2026-06-11",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-2",
+        title: "Alpha later",
+        description: "auth work",
+        priority: "high",
+        dueDate: "2026-06-15",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+      {
+        id: "task-3",
+        title: "Beta middle",
+        description: "different search",
+        priority: "high",
+        dueDate: "2026-06-13",
+        status: "pending",
+        createdAt: "2026-05-15T00:00:00.000Z",
+        updatedAt: "2026-05-15T00:00:00.000Z",
+      },
+    ]
+
+    window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(storedTasks))
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Sort by"), {
+      target: { value: "due-date-asc" },
+    })
+
+    const ascendingRows = Array.from(
+      document.querySelectorAll("tbody tr td:first-child p:first-child")
+    ).map((element) => element.textContent)
+
+    expect(ascendingRows).toEqual(["Alpha soon", "Beta middle", "Alpha later"])
+
+    fireEvent.change(screen.getByLabelText("Search tasks"), {
+      target: { value: "alpha" },
+    })
+    fireEvent.change(screen.getByLabelText("Status filter"), {
+      target: { value: "pending" },
+    })
+    fireEvent.change(screen.getByLabelText("Priority filter"), {
+      target: { value: "high" },
+    })
+
+    const filteredRows = Array.from(
+      document.querySelectorAll("tbody tr td:first-child p:first-child")
+    ).map((element) => element.textContent)
+
+    expect(filteredRows).toEqual(["Alpha soon", "Alpha later"])
+
+    fireEvent.change(screen.getByLabelText("Sort by"), {
+      target: { value: "due-date-desc" },
+    })
+
+    const descendingRows = Array.from(
+      document.querySelectorAll("tbody tr td:first-child p:first-child")
+    ).map((element) => element.textContent)
+
+    expect(descendingRows).toEqual(["Alpha later", "Alpha soon"])
+  })
+
+  test("announces successful create edit and delete actions", () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Feedback task" },
+    })
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Action feedback" },
+    })
+    fireEvent.change(screen.getByLabelText("Due date"), {
+      target: { value: "2026-06-20" },
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /new task/i }))
+
+    expect(screen.getByText("Task created successfully")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task Feedback task" }))
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Feedback task updated" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: /save task changes/i }))
+
+    expect(screen.getByText("Task updated successfully")).toBeTruthy()
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete task Feedback task updated" })
+    )
+
+    expect(screen.getByText("Task deleted successfully")).toBeTruthy()
+
+    confirmSpy.mockRestore()
   })
 
   test("supports keyboard shortcuts for submit, cancel edit, and search focus", () => {

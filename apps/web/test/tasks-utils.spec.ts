@@ -1,5 +1,5 @@
 import type { Task } from "@/lib/tasks/types"
-import { filterTasks, summarizeTasks } from "@/lib/tasks/utils"
+import { filterTasks, isTaskOverdue, sortTasks, summarizeTasks } from "@/lib/tasks/utils"
 import { describe, expect, test } from "vitest"
 
 function createTask(overrides: Partial<Task>): Task {
@@ -89,6 +89,45 @@ describe("task utils", () => {
     })
 
     expect(filtered.map((task) => task.id)).toEqual(["task-1", "task-2"])
+  })
+
+  test("sorts tasks by due date ascending and descending", () => {
+    const tasks: Task[] = [
+      createTask({ id: "task-1", dueDate: "2026-06-12" }),
+      createTask({ id: "task-2", dueDate: "2026-06-10" }),
+      createTask({ id: "task-3", dueDate: "2026-06-11" }),
+    ]
+
+    const ascending = sortTasks(tasks, { sortBy: "due-date-asc" })
+    const descending = sortTasks(tasks, { sortBy: "due-date-desc" })
+
+    expect(ascending.map((task) => task.id)).toEqual(["task-2", "task-3", "task-1"])
+    expect(descending.map((task) => task.id)).toEqual(["task-1", "task-3", "task-2"])
+  })
+
+  test("marks only pending tasks past due date as overdue", () => {
+    const now = new Date("2026-06-11T10:00:00.000Z")
+
+    expect(
+      isTaskOverdue(
+        createTask({ id: "task-1", status: "pending", dueDate: "2026-06-10" }),
+        now
+      )
+    ).toBe(true)
+
+    expect(
+      isTaskOverdue(
+        createTask({ id: "task-2", status: "completed", dueDate: "2026-06-10" }),
+        now
+      )
+    ).toBe(false)
+
+    expect(
+      isTaskOverdue(
+        createTask({ id: "task-3", status: "pending", dueDate: "2026-06-11" }),
+        now
+      )
+    ).toBe(false)
   })
 
   test("applies combined search, status, and priority filters", () => {
