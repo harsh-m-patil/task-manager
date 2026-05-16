@@ -843,6 +843,89 @@ describe("dashboard task workflow", () => {
     ).toBeTruthy()
   })
 
+  test("supports keyboard shortcuts for submit, cancel edit, and search focus", () => {
+    render(<Page />)
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Keyboard task" },
+    })
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Create via keyboard" },
+    })
+    fireEvent.change(screen.getByLabelText("Due date"), {
+      target: { value: "2026-06-18" },
+    })
+
+    const taskForm = screen.getByRole("button", { name: /new task/i }).closest("form")
+    expect(taskForm).toBeTruthy()
+
+    fireEvent.keyDown(taskForm!, {
+      key: "Enter",
+      code: "Enter",
+      ctrlKey: true,
+    })
+
+    expect(screen.getByText("Keyboard task")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task Keyboard task" }))
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Unsaved keyboard edit" },
+    })
+
+    fireEvent.keyDown(taskForm!, {
+      key: "Escape",
+      code: "Escape",
+    })
+
+    expect(screen.getByText("Keyboard task")).toBeTruthy()
+    expect(screen.queryByText("Unsaved keyboard edit")).toBeNull()
+    expect(screen.queryByRole("button", { name: /save task changes/i })).toBeNull()
+
+    const searchInput = screen.getByLabelText("Search tasks") as HTMLInputElement
+    expect(document.activeElement).not.toBe(searchInput)
+
+    fireEvent.keyDown(window, { key: "/", code: "Slash" })
+
+    expect(document.activeElement).toBe(searchInput)
+  })
+
+  test("uses touch-friendly sizing for high-frequency controls", () => {
+    render(<Page />)
+
+    expect(screen.getByRole("button", { name: /new task/i }).className).toContain(
+      "min-h-11"
+    )
+    expect((screen.getByLabelText("Priority") as HTMLSelectElement).className).toContain(
+      "min-h-11"
+    )
+    expect((screen.getByLabelText("Status filter") as HTMLSelectElement).className).toContain(
+      "min-h-11"
+    )
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Touch target check" },
+    })
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Needs comfortable tap targets" },
+    })
+    fireEvent.change(screen.getByLabelText("Due date"), {
+      target: { value: "2026-06-19" },
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /new task/i }))
+
+    expect(
+      screen.getByRole("button", {
+        name: "Mark task Touch target check as completed",
+      }).className
+    ).toContain("min-h-11")
+    expect(
+      screen.getByRole("button", {
+        name: "Delete task Touch target check",
+      }).className
+    ).toContain("min-h-11")
+  })
+
   test("falls back to empty list when storage payload is corrupt", () => {
     window.localStorage.setItem(TASKS_STORAGE_KEY, "{not-json")
 

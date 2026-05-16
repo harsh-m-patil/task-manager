@@ -1,6 +1,6 @@
 "use client"
 
-import { type FormEvent, useMemo, useState } from "react"
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -45,6 +45,12 @@ const defaultTaskInput: CreateTaskInput = {
   dueDate: "",
 }
 
+const selectClassName =
+  "border-input bg-background ring-offset-background focus-visible:ring-ring focus-visible:ring-3 flex min-h-11 w-full rounded-md border px-3 py-2 text-sm"
+
+const primaryButtonClassName = "min-h-11 px-4 sm:min-h-9"
+const taskActionButtonClassName = "min-h-11 px-3 sm:min-h-9"
+
 function priorityBadgeClassName(priority: TaskPriority): string {
   if (priority === "high") {
     return "bg-red-100 text-red-800 border-red-200"
@@ -80,6 +86,7 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all")
   const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>("all")
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   const summary = useMemo(() => summarizeTasks(tasks), [tasks])
   const filteredTasks = useMemo(
@@ -163,15 +170,20 @@ export default function Page() {
 
   const toggleTaskStatus = (task: Task) => {
     setTasks((current) => {
-      const nextTasks = current.map((currentTask) =>
-        currentTask.id === task.id
-          ? {
-              ...currentTask,
-              status: currentTask.status === "completed" ? "pending" : "completed",
-              updatedAt: new Date().toISOString(),
-            }
-          : currentTask
-      )
+      const nextTasks: Task[] = current.map((currentTask) => {
+        if (currentTask.id !== task.id) {
+          return currentTask
+        }
+
+        const nextStatus: Task["status"] =
+          currentTask.status === "completed" ? "pending" : "completed"
+
+        return {
+          ...currentTask,
+          status: nextStatus,
+          updatedAt: new Date().toISOString(),
+        }
+      })
 
       saveTasks(nextTasks)
       return nextTasks
@@ -197,6 +209,31 @@ export default function Page() {
       return nextTasks
     })
   }
+
+  useEffect(() => {
+    const onGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/") {
+        return
+      }
+
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      searchInputRef.current?.focus()
+    }
+
+    window.addEventListener("keydown", onGlobalKeyDown)
+    return () => window.removeEventListener("keydown", onGlobalKeyDown)
+  }, [])
 
   return (
     <div className="min-h-svh bg-background">
@@ -227,7 +264,27 @@ export default function Page() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form className="space-y-4" onSubmit={onSubmitTask} noValidate>
+              <form
+                className="space-y-4"
+                onSubmit={onSubmitTask}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && editingTaskId) {
+                    event.preventDefault()
+                    cancelEditingTask()
+                    return
+                  }
+
+                  if (
+                    event.key === "Enter" &&
+                    (event.metaKey || event.ctrlKey) &&
+                    event.currentTarget instanceof HTMLFormElement
+                  ) {
+                    event.preventDefault()
+                    event.currentTarget.requestSubmit()
+                  }
+                }}
+                noValidate
+              >
                 <div className="space-y-2">
                   <Label htmlFor="task-title">Title</Label>
                   <Input
@@ -271,7 +328,7 @@ export default function Page() {
                     <Label htmlFor="task-priority">Priority</Label>
                     <select
                       id="task-priority"
-                      className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                      className={selectClassName}
                       value={taskInput.priority}
                       onChange={(event) =>
                         updateTaskInput(
@@ -318,11 +375,16 @@ export default function Page() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button type="submit">
+                  <Button type="submit" className={primaryButtonClassName}>
                     {editingTaskId ? "Save task changes" : "New Task"}
                   </Button>
                   {editingTaskId ? (
-                    <Button type="button" variant="outline" onClick={cancelEditingTask}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={primaryButtonClassName}
+                      onClick={cancelEditingTask}
+                    >
                       Cancel edit
                     </Button>
                   ) : null}
@@ -343,10 +405,12 @@ export default function Page() {
                 <Label htmlFor="task-search">Search tasks</Label>
                 <Input
                   id="task-search"
+                  ref={searchInputRef}
                   type="search"
                   placeholder="Search by title or description"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                  className="min-h-11"
                 />
               </div>
 
@@ -355,7 +419,7 @@ export default function Page() {
                   <Label htmlFor="task-status-filter">Status filter</Label>
                   <select
                     id="task-status-filter"
-                    className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    className={selectClassName}
                     value={statusFilter}
                     onChange={(event) =>
                       setStatusFilter(event.currentTarget.value as TaskStatusFilter)
@@ -371,7 +435,7 @@ export default function Page() {
                   <Label htmlFor="task-priority-filter">Priority filter</Label>
                   <select
                     id="task-priority-filter"
-                    className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    className={selectClassName}
                     value={priorityFilter}
                     onChange={(event) =>
                       setPriorityFilter(event.currentTarget.value as TaskPriorityFilter)
@@ -388,6 +452,7 @@ export default function Page() {
               <Button
                 type="button"
                 variant="outline"
+                className={primaryButtonClassName}
                 onClick={() => {
                   setSearchQuery("")
                   setStatusFilter("all")
@@ -466,10 +531,11 @@ export default function Page() {
                         </TableCell>
                         <TableCell>{task.dueDate}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Button
                               type="button"
                               variant="outline"
+                              className={taskActionButtonClassName}
                               onClick={() =>
                                 toggleTaskStatus(task)
                               }
@@ -486,6 +552,7 @@ export default function Page() {
                             <Button
                               type="button"
                               variant="outline"
+                              className={taskActionButtonClassName}
                               onClick={() => startEditingTask(task)}
                               aria-label={`Edit task ${task.title}`}
                             >
@@ -494,6 +561,7 @@ export default function Page() {
                             <Button
                               type="button"
                               variant="outline"
+                              className={taskActionButtonClassName}
                               onClick={() => deleteTask(task)}
                               aria-label={`Delete task ${task.title}`}
                             >
