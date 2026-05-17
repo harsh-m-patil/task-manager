@@ -1,28 +1,59 @@
-export type TaskPriority = "low" | "medium" | "high"
+import z from "zod"
 
-export type TaskStatus = "pending" | "completed"
+export const TaskIdSchema = z.string().min(1)
 
-export type TaskStatusFilter = "all" | TaskStatus
+export const TaskSchema = z.object({
+  id: TaskIdSchema,
+  title: z.string().min(1, "cannot be empty"),
+  description: z.string().nullable().optional(),
+  priority: z.enum(["low", "medium", "high"]),
+  status: z.enum(["completed", "pending"]),
+  dueDate: z.string(),
+})
 
-export type TaskPriorityFilter = "all" | TaskPriority
+export const CreateTaskInputSchema = TaskSchema.omit({ id: true })
+export const TaskFormSchema = CreateTaskInputSchema.omit({ status: true }).extend({
+  title: z.string().trim().min(1, "Title is required"),
+  description: z.string().trim().optional(),
+  dueDate: z.string().min(1, "Due date is required"),
+})
 
-export type TaskSortOption = "default" | "due-date-asc" | "due-date-desc"
+export const normalizeTaskFormInput = ({
+  description,
+  ...task
+}: z.infer<typeof TaskFormSchema>) => ({
+  ...task,
+  description: description && description.length > 0 ? description : null,
+})
 
-export interface Task {
-  id: string
-  title: string
-  description: string
-  priority: TaskPriority
-  dueDate: string
-  status: TaskStatus
-  createdAt: string
-  updatedAt: string
-}
+export const CreateTaskFormSchema = TaskFormSchema.transform((input) => ({
+  ...normalizeTaskFormInput(input),
+  status: "pending" as const,
+}))
+export const UpdateTaskInputSchema = CreateTaskInputSchema.partial()
 
-export interface TaskState {
-  tasks: Task[]
-  searchQuery: string
-  statusFilter: TaskStatusFilter
-  priorityFilter: TaskPriorityFilter
-  sortBy: TaskSortOption
+export const TasksQuerySchema = z.object({
+  status: z.enum(["completed", "pending"]).optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+  search: z.string().min(1).optional(),
+})
+
+export type TaskId = z.infer<typeof TaskIdSchema>
+export type Task = z.infer<typeof TaskSchema>
+export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>
+export type TaskFormInput = z.input<typeof TaskFormSchema>
+export type CreateTaskFormInput = z.input<typeof CreateTaskFormSchema>
+export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>
+export type TasksQuery = z.infer<typeof TasksQuerySchema>
+
+export type Priority = Task["priority"]
+export type Status = Task["status"]
+
+export interface TasksStorage {
+  list(query?: TasksQuery): Promise<Task[]>
+  get(id: TaskId): Promise<Task | null>
+  create(input: CreateTaskInput): Promise<Task>
+  update(id: TaskId, input: UpdateTaskInput): Promise<Task>
+  remove(id: TaskId): Promise<void>
+  seedTasks(): Promise<Task[]>
 }
