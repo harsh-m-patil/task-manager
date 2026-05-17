@@ -77,6 +77,7 @@
 }
 
 :root {
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     --background: oklch(0.9730 0.0133 286.1503);
     --foreground: oklch(0.3015 0.0572 282.4176);
     --card: oklch(1.0000 0 0);
@@ -195,4 +196,41 @@
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
     }
+  html {
+    view-transition-name: root;
+    }
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 0;
+}
+
+::view-transition-new(root) {
+  z-index: 1;
+  animation: theme-reveal 0.55s var(--ease-in-out) forwards;
+}
+
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+    opacity: 0.7;
+  }
+
+  to {
+    clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms;
+  }
 }

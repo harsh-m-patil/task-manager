@@ -3,6 +3,28 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
+type Coords = {
+  x: number
+  y: number
+}
+
+type ThemeTransitionContextValue = {
+  toggleTheme: (coords?: Coords) => void
+}
+
+const ThemeTransitionContext = React.createContext<ThemeTransitionContextValue | null>(
+  null
+)
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (callback: () => void) => {
+    finished: Promise<void>
+    ready: Promise<void>
+    updateCallbackDone: Promise<void>
+    skipTransition: () => void
+  }
+}
+
 function ThemeProvider({
   children,
   ...props
@@ -15,9 +37,50 @@ function ThemeProvider({
       disableTransitionOnChange
       {...props}
     >
-      <ThemeHotkey />
-      {children}
+      <ThemeProviderWithTransitions>
+        <ThemeHotkey />
+        {children}
+      </ThemeProviderWithTransitions>
     </NextThemesProvider>
+  )
+}
+
+function ThemeProviderWithTransitions({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const { resolvedTheme, setTheme } = useTheme()
+
+  const toggleTheme = React.useCallback(
+    (coords?: Coords) => {
+      const nextTheme = resolvedTheme === "dark" ? "light" : "dark"
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches
+      const viewTransitionDocument = document as ViewTransitionDocument
+
+      if (!viewTransitionDocument.startViewTransition || prefersReducedMotion) {
+        setTheme(nextTheme)
+        return
+      }
+
+      if (coords) {
+        document.documentElement.style.setProperty("--x", `${coords.x}px`)
+        document.documentElement.style.setProperty("--y", `${coords.y}px`)
+      }
+
+      viewTransitionDocument.startViewTransition(() => {
+        setTheme(nextTheme)
+      })
+    },
+    [resolvedTheme, setTheme]
+  )
+
+  return (
+    <ThemeTransitionContext.Provider value={{ toggleTheme }}>
+      {children}
+    </ThemeTransitionContext.Provider>
   )
 }
 
@@ -35,7 +98,7 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 function ThemeHotkey() {
-  const { resolvedTheme, setTheme } = useTheme()
+  const { toggleTheme } = useThemeTransition()
 
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -55,7 +118,7 @@ function ThemeHotkey() {
         return
       }
 
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
+      toggleTheme()
     }
 
     window.addEventListener("keydown", onKeyDown)
@@ -63,9 +126,19 @@ function ThemeHotkey() {
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [resolvedTheme, setTheme])
+  }, [toggleTheme])
 
   return null
 }
 
-export { ThemeProvider }
+function useThemeTransition() {
+  const context = React.useContext(ThemeTransitionContext)
+
+  if (!context) {
+    throw new Error("useThemeTransition must be used within ThemeProvider")
+  }
+
+  return context
+}
+
+export { ThemeProvider, useThemeTransition }

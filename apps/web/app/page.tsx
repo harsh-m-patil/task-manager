@@ -7,10 +7,15 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useQuery } from "@tanstack/react-query"
 import { Search, X } from "lucide-react"
 
+import {
+  CreateTaskDialog,
+  DeleteTaskButton,
+  EditTaskDialog,
+} from "@/components/create-task-dialog"
+import { ModeToggle } from "@/components/mode-toggle"
 import { tasksListQueryOptions } from "@/lib/tasks/queries"
 import { parseTasksSearch } from "@/lib/tasks/search"
 import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
@@ -73,7 +78,7 @@ export default function Page() {
           <InputGroupInput
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search tasks… try is:issue status:closed priority:high"
+            placeholder="Search tasks… try status:completed priority:high"
             className="h-10"
           />
           {isSearching ? (
@@ -88,24 +93,26 @@ export default function Page() {
             </InputGroupAddon>
           ) : null}
         </InputGroup>
-        <Button className="h-10">Add task</Button>
+        <CreateTaskDialog />
       </div>
 
-      <div className="mb-3 flex items-center justify-between gap-4">
+      <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground text-sm">
-            Search with GitHub-style qualifiers like status:closed and
-            priority:high.
+            Search with task qualifiers like status:completed and priority:high.
             {isDebouncing ? " Waiting for you to stop typing..." : ""}
             {!isDebouncing && isFetching ? " Refreshing results..." : ""}
           </p>
         </div>
-        <Badge variant="secondary">
-          {tasks.length} visible{allTasks.length !== tasks.length
-            ? ` of ${allTasks.length}`
-            : ""}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">
+            {tasks.length} visible{allTasks.length !== tasks.length
+              ? ` of ${allTasks.length}`
+              : ""}
+          </Badge>
+          <ModeToggle />
+        </div>
       </div>
 
       {isSearching ? (
@@ -129,7 +136,7 @@ export default function Page() {
           <EmptyHeader>
             <EmptyTitle>No matching tasks</EmptyTitle>
             <EmptyDescription>
-              Try a different search, or clear a qualifier like status:closed.
+              Try a different search, or clear a qualifier like status:completed.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -150,7 +157,13 @@ export default function Page() {
                 <p className="text-sm text-muted-foreground">
                   {task.description ?? "No description"}
                 </p>
-                <Badge>{task.priority}</Badge>
+                <div className="flex items-center justify-between gap-3">
+                  <Badge>{task.priority}</Badge>
+                  <div className="flex items-center gap-2">
+                    <EditTaskDialog task={task} />
+                    <DeleteTaskButton task={task} />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}

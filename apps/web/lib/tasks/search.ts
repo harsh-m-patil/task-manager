@@ -75,19 +75,6 @@ export const parseTasksSearch = (input: string): ParsedTasksSearch => {
       }
     }
 
-    if (key === "is") {
-      const status = parseStatus(value)
-
-      if (status) {
-        query.status = status
-        continue
-      }
-
-      if (value === "issue" || value === "task") {
-        continue
-      }
-    }
-
     textTokens.push(token)
   }
 

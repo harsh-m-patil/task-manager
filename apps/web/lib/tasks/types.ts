@@ -12,6 +12,24 @@ export const TaskSchema = z.object({
 })
 
 export const CreateTaskInputSchema = TaskSchema.omit({ id: true })
+export const TaskFormSchema = CreateTaskInputSchema.omit({ status: true }).extend({
+  title: z.string().trim().min(1, "Title is required"),
+  description: z.string().trim().optional(),
+  dueDate: z.string().min(1, "Due date is required"),
+})
+
+export const normalizeTaskFormInput = ({
+  description,
+  ...task
+}: z.infer<typeof TaskFormSchema>) => ({
+  ...task,
+  description: description && description.length > 0 ? description : null,
+})
+
+export const CreateTaskFormSchema = TaskFormSchema.transform((input) => ({
+  ...normalizeTaskFormInput(input),
+  status: "pending" as const,
+}))
 export const UpdateTaskInputSchema = CreateTaskInputSchema.partial()
 
 export const TasksQuerySchema = z.object({
@@ -23,6 +41,8 @@ export const TasksQuerySchema = z.object({
 export type TaskId = z.infer<typeof TaskIdSchema>
 export type Task = z.infer<typeof TaskSchema>
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>
+export type TaskFormInput = z.input<typeof TaskFormSchema>
+export type CreateTaskFormInput = z.input<typeof CreateTaskFormSchema>
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>
 export type TasksQuery = z.infer<typeof TasksQuerySchema>
 
