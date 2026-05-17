@@ -16,6 +16,7 @@ import { ModeToggle } from "@/components/mode-toggle"
 import { tasksListQueryOptions } from "@/lib/tasks/queries"
 import { parseTasksSearch } from "@/lib/tasks/search"
 import { Badge } from "@workspace/ui/components/badge"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   Card,
   CardContent,
@@ -36,6 +37,21 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@workspace/ui/components/input-group"
+
+const priorityBadgeStyles = {
+  low: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300",
+  medium:
+    "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300",
+  high: "bg-rose-100 text-rose-800 hover:bg-rose-100 dark:bg-rose-500/15 dark:text-rose-300",
+} as const
+
+function getTodayDateKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+}
 
 export default function Page() {
   const [searchInput, setSearchInput] = useState("")
@@ -65,6 +81,7 @@ export default function Page() {
 
   const isSearching = searchInput.trim().length > 0
   const isDebouncing = searchInput !== debouncedSearchInput
+  const todayDateKey = getTodayDateKey()
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12">
@@ -100,7 +117,6 @@ export default function Page() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground text-sm">
-            Search with task qualifiers like status:completed and priority:high.
             {isDebouncing ? " Waiting for you to stop typing..." : ""}
             {!isDebouncing && isFetching ? " Refreshing results..." : ""}
           </p>
@@ -142,31 +158,46 @@ export default function Page() {
         </Empty>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {tasks.map((task) => (
-            <Card key={task.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>{task.title}</CardTitle>
-                    <CardDescription>{task.dueDate}</CardDescription>
+          {tasks.map((task) => {
+            const isPastDue =
+              task.status === "pending" && task.dueDate < todayDateKey
+
+            return (
+              <Card
+                key={task.id}
+                className={cn(
+                  task.status === "completed" && "opacity-65",
+                  isPastDue
+                    ? "ring-2 ring-destructive/80"
+                    : task.status === "pending" && "ring-2 ring-primary/70"
+                )}
+              >
+                  <CardHeader>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle>{task.title}</CardTitle>
+                      <CardDescription>{task.dueDate}</CardDescription>
+                    </div>
+                    <Badge variant="outline">{task.status}</Badge>
                   </div>
-                  <Badge variant="outline">{task.status}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  {task.description ?? "No description"}
-                </p>
-                <div className="flex items-center justify-between gap-3">
-                  <Badge>{task.priority}</Badge>
-                  <div className="flex items-center gap-2">
-                    <EditTaskDialog task={task} />
-                    <DeleteTaskButton task={task} />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {task.description ?? "No description"}
+                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge className={priorityBadgeStyles[task.priority]}>
+                      {task.priority}
+                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <EditTaskDialog task={task} />
+                      <DeleteTaskButton task={task} />
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>
